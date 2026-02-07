@@ -1,0 +1,31 @@
+# Build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo lock file (for libraries, optional)
+# Cargo.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Model files (large, should be downloaded separately)
+models/*.ppn
+
+# Environment files
+.env
+.env.local
+
+# Log files
+*.log
+
+# Test outputs
+/test-output/

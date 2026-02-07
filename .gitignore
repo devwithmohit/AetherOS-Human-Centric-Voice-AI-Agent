@@ -1,0 +1,58 @@
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Build artifacts
+debug/
+release/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python (if you have Python components)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Node (if you have Node components)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Audio/Model files (if not needed in version control)
+*.wav
+*.mp3
+*.onnx
+*.tflite
+# Uncomment if you want to ignore model files in the models directory
+# models/*.onnx
+# models/*.tflite
