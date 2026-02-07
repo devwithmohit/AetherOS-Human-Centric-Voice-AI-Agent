@@ -1,5 +1,6 @@
 """FastAPI application for Memory Service."""
 
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI
@@ -12,6 +13,8 @@ from app.database import init_db, close_db
 from app.stores.short_term import short_term_memory
 from app.stores.episodic import episodic_memory
 from app.routers import short_term_router, long_term_router, episodic_router
+from app.routers.dashboard_router import router as dashboard_router
+from app.retention import retention_policy
 from app.schemas import HealthResponse
 
 # Configure logging
@@ -43,6 +46,10 @@ async def lifespan(app: FastAPI):
         await episodic_memory.connect()
         logger.info("ChromaDB connected")
 
+        # Start retention policy enforcement
+        asyncio.create_task(retention_policy.start())
+        logger.info("Retention policy enforcement started")
+
         logger.info("✅ All services initialized successfully")
     except Exception as e:
         logger.error(f"❌ Failed to initialize services: {e}")
@@ -54,6 +61,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down services...")
 
     try:
+        await retention_policy.stop()
         await short_term_memory.disconnect()
         await episodic_memory.disconnect()
         await close_db()
@@ -65,9 +73,20 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app
 app = FastAPI(
     title="AetherOS Memory Service",
-    description="Memory management service with short-term, long-term, and episodic memory",
-    version="0.1.0",
+    description=(
+        "Multi-tier memory management service for AetherOS voice agent. "
+        "Provides short-term (Redis), long-term (PostgreSQL), and episodic (ChromaDB) memory "
+        "with retention policies, dashboard analytics, and comprehensive API."
+    ),
+    version="0.2.0",
     lifespan=lifespan,
+    contact={
+        "name": "AetherOS Development Team",
+        "url": "https://github.com/yourusername/Jarvis-voice-agent",
+    },
+    license_info={
+        "name": "MIT",
+    },
 )
 
 # Configure CORS
@@ -123,9 +142,10 @@ async def root():
 
 
 # Register routers
-app.include_router(short_term_router)
-app.include_router(long_term_router)
-app.include_router(episodic_router)
+app.include_router(short_term_router, tags=["Short-term Memory"])
+app.include_router(long_term_router, tags=["Long-term Memory"])
+app.include_router(episodic_router, tags=["Episodic Memory"])
+app.include_router(dashboard_router, tags=["Dashboard & Analytics"])
 
 
 # Error handlers
