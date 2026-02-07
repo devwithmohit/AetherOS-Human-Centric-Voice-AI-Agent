@@ -1,0 +1,73 @@
+version: "3.8"
+
+services:
+  # PostgreSQL for long-term memory
+  postgres:
+    image: postgres:15-alpine
+    container_name: aetheros-postgres
+    environment:
+      POSTGRES_DB: aetheros_memory
+      POSTGRES_USER: aetheros
+      POSTGRES_PASSWORD: aetheros_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aetheros"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for short-term memory
+  redis:
+    image: redis:7-alpine
+    container_name: aetheros-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Memory Service
+  memory-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aetheros-memory-service
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+      - SERVICE_HOST=0.0.0.0
+      - SERVICE_PORT=8001
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=aetheros_memory
+      - POSTGRES_USER=aetheros
+      - POSTGRES_PASSWORD=aetheros_dev_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - CHROMA_PERSIST_DIR=/app/chroma_data
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - SECRET_KEY=${SECRET_KEY}
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./chroma_data:/app/chroma_data
+      - ./app:/app/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+volumes:
+  postgres_data:
+  redis_data:
