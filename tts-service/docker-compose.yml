@@ -1,0 +1,58 @@
+version: "3.8"
+
+services:
+  tts-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aetheros-tts-service
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./models:/app/models
+      - ./cache:/app/cache
+      - ./app:/app/app # Mount for development hot reload
+    environment:
+      - SERVICE_NAME=tts-service
+      - SERVICE_HOST=0.0.0.0
+      - SERVICE_PORT=8002
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+      - TTS_MODEL_NAME=tts_models/en/ljspeech/tacotron2-DDC
+      - TTS_MODEL_PATH=/app/models/
+      - AUDIO_SAMPLE_RATE=22050
+      - USE_CUDA=false # Set to true if using GPU
+      - CACHE_ENABLED=true
+      - CACHE_DIR=/app/cache/
+      - CACHE_SIZE_MB=500
+      - CACHE_TTL_SECONDS=86400
+      - MAX_TEXT_LENGTH=500
+      - STREAM_CHUNK_SIZE=4096
+      - ENABLE_STREAMING=true
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:8000,http://localhost:8001
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import requests; requests.get('http://localhost:8002/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    # Uncomment for GPU support
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+networks:
+  default:
+    name: aetheros-network
+    external: true
