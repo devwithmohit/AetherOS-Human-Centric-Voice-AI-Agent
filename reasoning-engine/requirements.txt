@@ -1,0 +1,23 @@
+# Reasoning Engine (Module 5) - Requirements
+# Python 3.10 compatible, CPU-only
+
+# Core LLM inference
+llama-cpp-python>=0.2.0
+
+# Data validation
+pydantic>=2.5.0
+
+# HTTP client for M10 memory service
+httpx>=0.26.0
+
+# Environment configuration
+python-dotenv>=1.0.0
+
+# Template rendering for prompts
+jinja2>=3.1.0
+
+# Development dependencies (optional)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+black>=24.1.0
+ruff>=0.1.13

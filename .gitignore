@@ -53,12 +53,38 @@ Desktop.ini
 *.mp3
 *.onnx
 *.tflite
+
+# LLM Model files (large binary files)
+*.gguf
+*.bin
+*.safetensors
+*.pt
+*.pth
+models/*.gguf
+models/*.bin
+reasoning-engine/models/*.gguf
+reasoning-engine/models/*.bin
+
 # Uncomment if you want to ignore model files in the models directory
 # models/*.onnx
 # models/*.tflite
+
 # Ignore all markdown files
 *.md
 
 # Allow README.md everywhere
 !README.md
 !**/README.md
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Pytest cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# UV package manager
+.uv/
