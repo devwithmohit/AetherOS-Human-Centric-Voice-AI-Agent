@@ -1,0 +1,256 @@
+# Security policies for AetherOS Safety Validator
+
+# Risk levels for different tool types
+risk_levels:
+  # LOW RISK - No confirmation needed
+  low:
+    - GET_WEATHER
+    - GET_TIME
+    - GET_DATE
+    - WEB_SEARCH
+    - GET_NEWS
+    - MEDIA_PLAYER
+    - VOLUME_CONTROL
+    - HELP
+    - GREETING
+    - FAREWELL
+    - JOKE
+    - FACT
+    - QUOTE
+    - MATH_CALCULATION
+    - UNIT_CONVERSION
+    - TRANSLATION
+
+  # MEDIUM RISK - Log but allow
+  medium:
+    - OPEN_APPLICATION
+    - SCREEN_CONTROL
+    - SET_TIMER
+    - SET_ALARM
+    - REMINDER
+    - NOTE_TAKING
+    - LIST_MANAGEMENT
+    - LIGHT_CONTROL
+    - TEMPERATURE_CONTROL
+    - SMART_HOME_CONTROL
+    - CALENDAR
+    - MUSIC_CONTROL
+    - NAVIGATION
+
+  # HIGH RISK - Require confirmation
+  high:
+    - CLOSE_APPLICATION
+    - SYSTEM_CONTROL
+    - SEND_EMAIL
+    - SEND_MESSAGE
+    - MAKE_CALL
+    - FILE_OPERATION
+    - DEVICE_CONTROL
+    - PAYMENT
+    - PURCHASE
+    - BOOKING
+    - SUBSCRIPTION
+
+  # CRITICAL - Always block or require explicit authorization
+  critical:
+    - SYSTEM_SHUTDOWN
+    - SYSTEM_RESTART
+    - DELETE_FILE
+    - FORMAT_DRIVE
+    - ADMIN_COMMAND
+    - DATABASE_MODIFY
+    - USER_ACCOUNT_MODIFY
+
+# Tool whitelist - only these tools are allowed to execute
+allowed_tools:
+  - GET_WEATHER
+  - GET_TIME
+  - GET_DATE
+  - WEB_SEARCH
+  - GET_NEWS
+  - MEDIA_PLAYER
+  - VOLUME_CONTROL
+  - OPEN_APPLICATION
+  - CLOSE_APPLICATION
+  - SCREEN_CONTROL
+  - SET_TIMER
+  - SET_ALARM
+  - REMINDER
+  - NOTE_TAKING
+  - LIST_MANAGEMENT
+  - LIGHT_CONTROL
+  - TEMPERATURE_CONTROL
+  - SMART_HOME_CONTROL
+  - CALENDAR
+  - SEND_EMAIL
+  - SEND_MESSAGE
+  - MAKE_CALL
+  - MUSIC_CONTROL
+  - NAVIGATION
+  - HELP
+  - GREETING
+  - FAREWELL
+  - JOKE
+  - FACT
+  - QUOTE
+  - MATH_CALCULATION
+  - UNIT_CONVERSION
+  - TRANSLATION
+
+# Blocked tools - never allowed
+blocked_tools:
+  - SYSTEM_SHUTDOWN
+  - SYSTEM_RESTART
+  - FORMAT_DRIVE
+  - DELETE_FILE  # Requires special authorization
+  - ADMIN_COMMAND
+  - DATABASE_MODIFY
+  - USER_ACCOUNT_MODIFY
+
+# Parameter validation rules
+parameter_rules:
+  # Path traversal protection
+  file_paths:
+    max_length: 260
+    blocked_patterns:
+      - ".."
+      - "~/"
+      - "/etc/"
+      - "/var/"
+      - "/sys/"
+      - "C:\\Windows"
+      - "C:\\Program Files"
+    allowed_extensions:
+      - ".txt"
+      - ".md"
+      - ".json"
+      - ".csv"
+      - ".pdf"
+
+  # SQL injection protection
+  database_queries:
+    blocked_patterns:
+      - "DROP TABLE"
+      - "DELETE FROM"
+      - "INSERT INTO"
+      - "UPDATE "
+      - "--"
+      - "/*"
+      - "*/"
+      - "xp_"
+      - "sp_"
+    max_length: 500
+
+  # Command injection protection
+  system_commands:
+    blocked_patterns:
+      - ";"
+      - "|"
+      - "&"
+      - "&&"
+      - "||"
+      - "`"
+      - "$("
+      - ">>"
+      - ">"
+      - "<"
+    max_length: 200
+
+  # URL validation
+  urls:
+    allowed_schemes:
+      - "http"
+      - "https"
+    blocked_domains:
+      - "localhost"
+      - "127.0.0.1"
+      - "0.0.0.0"
+      - "192.168."
+      - "10."
+      - "172.16."
+    max_length: 2000
+
+  # Email validation
+  emails:
+    max_length: 254
+    require_tld: true
+
+  # Application names
+  applications:
+    allowed_apps:
+      - "chrome"
+      - "firefox"
+      - "edge"
+      - "spotify"
+      - "vscode"
+      - "notepad"
+      - "calculator"
+      - "calendar"
+      - "mail"
+      - "terminal"
+    max_length: 50
+
+# Rate limiting
+rate_limits:
+  # Maximum actions per minute per user
+  actions_per_minute:
+    low_risk: 60
+    medium_risk: 30
+    high_risk: 10
+    critical: 1
+
+  # Maximum failed validations before temporary block
+  max_failed_validations: 10
+  block_duration_seconds: 300  # 5 minutes
+
+# PII detection patterns
+pii_patterns:
+  credit_card:
+    pattern: '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b'
+    mask: "****-****-****-####"
+
+  ssn:
+    pattern: '\b\d{3}-\d{2}-\d{4}\b'
+    mask: "***-**-####"
+
+  email:
+    pattern: '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    mask: "***@***.***"
+
+  phone:
+    pattern: '\b(\+?1[-.]?)?\(?\d{3}\)?[-.]?\d{3}[-.]?\d{4}\b'
+    mask: "***-***-####"
+
+# Confirmation settings
+confirmation:
+  # Tools that always require confirmation
+  require_confirmation:
+    - SEND_EMAIL
+    - SEND_MESSAGE
+    - MAKE_CALL
+    - SYSTEM_CONTROL
+    - CLOSE_APPLICATION
+    - FILE_OPERATION
+    - PAYMENT
+    - PURCHASE
+    - BOOKING
+
+  # Timeout for confirmation (seconds)
+  timeout_seconds: 30
+
+  # Maximum pending confirmations per user
+  max_pending: 5
+
+# Logging
+logging:
+  # Log all validations
+  log_all: true
+
+  # Log blocked actions
+  log_blocked: true
+
+  # Log high-risk approvals
+  log_high_risk: true
+
+  # Retention period (days)
+  retention_days: 90
