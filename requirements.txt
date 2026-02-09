@@ -1,0 +1,136 @@
+# AetherOS Voice Agent - Complete Requirements
+# Python 3.10 compatible, CPU-only (no NVIDIA GPU)
+# Includes all modules: M2 (STT), M3 (TTS), M4 (Intent), M10 (Memory)
+
+# ============================================================================
+# CORE FRAMEWORK (All Modules)
+# ============================================================================
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+python-multipart==0.0.6
+httpx==0.26.0
+
+# ============================================================================
+# MODULE 2: STT PROCESSOR (Rust-based, no Python deps)
+# ============================================================================
+# Note: STT Processor is written in Rust (Cargo.toml)
+# No Python requirements for M2
+
+# ============================================================================
+# MODULE 3: TTS SERVICE
+# ============================================================================
+
+# TTS Engine - Temporarily disabled due to numpy incompatibility
+# TTS==0.22.0 requires numpy==1.22.0, but librosa>=0.10.0 excludes numpy==1.22.0
+# This creates an unsolvable conflict. Solutions:
+# 1. Wait for TTS update with flexible numpy requirements
+# 2. Use alternative TTS library (piper-tts, edge-tts, etc.)
+# 3. Install TTS in separate environment when needed
+# TTS==0.22.0  # DISABLED
+
+# Audio Processing (for general audio tasks, not TTS-specific)
+soundfile==0.12.1
+# librosa==0.10.1  # DISABLED - conflicts with TTS
+pydub==0.25.1
+
+# Utilities
+diskcache==5.6.3
+
+# ============================================================================
+# MODULE 4: INTENT CLASSIFIER (NEW)
+# ============================================================================
+
+# Intent Classification
+sentence-transformers>=2.2.2,<3.0.0
+regex>=2023.12.25
+
+# Date/Time Parsing
+python-dateutil>=2.8.2
+
+# ============================================================================
+# MODULE 10: MEMORY SERVICE
+# ============================================================================
+
+# Database - PostgreSQL
+sqlalchemy==2.0.25
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+alembic==1.13.1
+
+# Cache - Redis
+redis[hiredis]==5.0.1
+aioredis==2.0.1
+
+# Vector Database - ChromaDB
+chromadb==0.4.22
+
+# Security
+cryptography==42.0.0
+
+# ============================================================================
+# PYTORCH - CPU ONLY (for Intent Classifier only, TTS disabled)
+# ============================================================================
+# Using CPU-only PyTorch to avoid CUDA packages (no NVIDIA GPU)
+# TTS disabled, so PyTorch only needed for sentence-transformers (M4)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.1.2+cpu
+# torchaudio==2.1.2+cpu  # Not needed without TTS
+
+# ============================================================================
+# SHARED DEPENDENCIES
+# ============================================================================
+
+# NumPy - Flexible version for remaining packages (M4 Intent Classifier, M10 Memory)
+# TTS disabled due to incompatibility, so we can use newer numpy
+# ChromaDB requires <2.0.0, sentence-transformers works with 1.24+
+numpy>=1.24.0,<2.0.0
+
+# ============================================================================
+# DEVELOPMENT & TESTING (Optional)
+# ============================================================================
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+
+# Code Quality
+black==24.1.1
+ruff==0.1.14
+mypy==1.8.0
+
+# Test Data Generation
+faker==22.0.0
+
+# ============================================================================
+# NOTES
+# ============================================================================
+#
+# Installation:
+#   pip install -r requirements.txt
+#   or
+#   uv pip install -r requirements.txt
+#
+# Module Breakdown:
+#   - M1 (Wakeword): Rust (Cargo.toml) - No Python deps
+#   - M2 (STT): Rust (Cargo.toml) - No Python deps
+#   - M3 (TTS): TTS, torch, audio libraries
+#   - M4 (Intent): sentence-transformers, torch
+#   - M10 (Memory): FastAPI, PostgreSQL, Redis, ChromaDB
+#
+# CPU-Only Setup:
+#   - PyTorch installed with +cpu suffix (no CUDA)
+#   - sentence-transformers will use CPU automatically
+#   - No NVIDIA GPU packages included
+#
+# Python Version:
+#   - Requires Python 3.10.x
+#   - Tested on Python 3.10.14
+#
+# Known Constraints:
+#   - numpy<2.0.0 required for ChromaDB 0.4.22 compatibility
+#   - torch 2.1.2 for TTS compatibility
+#

@@ -1,0 +1,27 @@
+# Intent Classifier (Module 4) - Requirements
+# Python 3.10 compatible, CPU-only (no GPU)
+
+# Core dependencies
+sentence-transformers>=2.2.2,<3.0.0
+numpy>=1.24.0,<2.0.0
+pydantic>=2.5.0,<3.0.0
+python-dateutil>=2.8.2
+regex>=2023.12.25
+
+# PyTorch CPU-only (sentence-transformers dependency)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.0.0,<3.0.0
+torchvision>=0.15.0,<1.0.0
+torchaudio>=2.0.0,<3.0.0
+
+# Optional API serving (if needed)
+fastapi>=0.109.0,<1.0.0
+uvicorn[standard]>=0.27.0,<1.0.0
+
+# Development dependencies (optional)
+pytest>=7.4.0,<8.0.0
+pytest-asyncio>=0.21.0,<1.0.0
+pytest-cov>=4.1.0,<5.0.0
+black>=24.1.0,<25.0.0
+ruff>=0.1.13,<1.0.0
+httpx>=0.26.0,<1.0.0
