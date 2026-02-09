@@ -56,3 +56,9 @@ Desktop.ini
 # Uncomment if you want to ignore model files in the models directory
 # models/*.onnx
 # models/*.tflite
+# Ignore all markdown files
+*.md
+
+# Allow README.md everywhere
+!README.md
+!**/README.md
