@@ -41,12 +41,15 @@ class RiskScorer:
         # Load risk level mappings
         self.risk_mappings = self.policies.get("risk_levels", {})
 
-        # Risk score thresholds
+        # Risk score thresholds (adjusted for 70% tool weight)
+        # HIGH tools: 0.7 base * 0.7 weight = 0.49 should be HIGH
+        # CRITICAL tools: 1.0 base * 0.7 weight = 0.70 should be CRITICAL
+        # Thresholds are minimum scores, checked from top down
         self.thresholds = {
-            RiskLevel.LOW: 0.25,
-            RiskLevel.MEDIUM: 0.50,
-            RiskLevel.HIGH: 0.75,
-            RiskLevel.CRITICAL: 1.0,
+            RiskLevel.CRITICAL: 0.70,  # >= 0.70
+            RiskLevel.HIGH: 0.45,  # >= 0.45, < 0.70
+            RiskLevel.MEDIUM: 0.15,  # >= 0.15, < 0.45
+            RiskLevel.LOW: 0.0,  # < 0.15
         }
 
     def _load_policies(self) -> Dict[str, Any]:
@@ -84,17 +87,17 @@ class RiskScorer:
         """
         factors = {}
 
-        # Factor 1: Base risk from tool type (50% weight)
+        # Factor 1: Base risk from tool type (70% weight - primary factor)
         base_risk = self._get_base_risk(tool)
-        factors["tool_type"] = base_risk * 0.5
+        factors["tool_type"] = base_risk * 0.7
 
-        # Factor 2: Parameter risk (30% weight)
+        # Factor 2: Parameter risk (20% weight)
         param_risk = self._assess_parameter_risk(tool, parameters)
-        factors["parameters"] = param_risk * 0.3
+        factors["parameters"] = param_risk * 0.2
 
-        # Factor 3: Contextual risk (20% weight)
+        # Factor 3: Contextual risk (10% weight)
         context_risk = self._assess_contextual_risk(tool, parameters, context or {})
-        factors["context"] = context_risk * 0.2
+        factors["context"] = context_risk * 0.1
 
         # Calculate total score
         total_score = sum(factors.values())

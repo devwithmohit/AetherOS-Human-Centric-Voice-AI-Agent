@@ -134,6 +134,8 @@ parameter_rules:
       - "DELETE FROM"
       - "INSERT INTO"
       - "UPDATE "
+      - "UNION SELECT"
+      - "UNION ALL"
       - "--"
       - "/*"
       - "*/"
@@ -197,7 +199,7 @@ rate_limits:
     low_risk: 60
     medium_risk: 30
     high_risk: 10
-    critical: 1
+    critical_risk: 1
 
   # Maximum failed validations before temporary block
   max_failed_validations: 10
