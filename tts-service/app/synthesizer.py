@@ -1,14 +1,14 @@
-"""TTS Synthesizer - Core text-to-speech synthesis logic."""
+"""TTS Synthesizer - Core text-to-speech synthesis logic using Piper TTS."""
 
 import io
 import os
 import time
 import logging
+import subprocess
+import wave
+from pathlib import Path
 from typing import Optional, Tuple
 import numpy as np
-import soundfile as sf
-import torch
-from TTS.api import TTS
 
 from app.config import settings
 
@@ -16,43 +16,60 @@ logger = logging.getLogger(__name__)
 
 
 class TTSSynthesizer:
-    """Text-to-speech synthesizer using Coqui TTS."""
+    """Text-to-speech synthesizer using Piper TTS."""
 
     def __init__(self) -> None:
         """Initialize TTS synthesizer."""
-        self.model: Optional[TTS] = None
-        self.model_name: str = settings.tts_model_name
-        self.device: str = "cuda" if settings.use_cuda and torch.cuda.is_available() else "cpu"
-        self.sample_rate: int = settings.audio_sample_rate
+        self.sample_rate: int = 22050  # Piper default sample rate
         self._model_loaded: bool = False
         self._inference_count: int = 0
         self._total_inference_time: float = 0.0
 
-        logger.info(f"Initializing TTS Synthesizer with model: {self.model_name}")
-        logger.info(f"Using device: {self.device}")
+        # Piper paths (relative to tts-service root)
+        self.models_dir = Path(__file__).parent.parent / "models"
+        self.piper_binary = self.models_dir / "piper"
+        self.model_path = self.models_dir / "en_US-lessac-medium.onnx"
+        self.model_config = self.models_dir / "en_US-lessac-medium.onnx.json"
+
+        logger.info("Initializing Piper TTS Synthesizer")
+        logger.info(f"Models directory: {self.models_dir}")
+        logger.info(f"Piper binary: {self.piper_binary}")
 
     def load_model(self) -> None:
-        """Load TTS model into memory."""
+        """Load TTS model into memory (verify Piper binary and model exist)."""
         if self._model_loaded:
             logger.info("Model already loaded")
             return
 
         try:
             start_time = time.time()
-            logger.info(f"Loading TTS model: {self.model_name}")
+            logger.info("Loading Piper TTS model")
 
-            # Initialize TTS model
-            self.model = TTS(
-                model_name=self.model_name,
-                progress_bar=True,
-                gpu=(self.device == "cuda"),
-            )
+            # Verify Piper binary exists and is executable
+            if not self.piper_binary.exists():
+                raise RuntimeError(
+                    f"Piper binary not found at {self.piper_binary}. "
+                    "Please download from https://github.com/rhasspy/piper/releases"
+                )
 
-            # Set model to evaluation mode
-            if hasattr(self.model, "synthesizer") and hasattr(self.model.synthesizer, "tts_model"):
-                self.model.synthesizer.tts_model.eval()
+            # Make binary executable on Unix systems
+            if os.name != "nt":
+                os.chmod(self.piper_binary, 0o755)
 
-            # Warm up model with a test synthesis
+            # Verify model files exist
+            if not self.model_path.exists():
+                raise RuntimeError(
+                    f"Piper model not found at {self.model_path}. "
+                    "Please download en_US-lessac-medium.onnx"
+                )
+
+            if not self.model_config.exists():
+                raise RuntimeError(
+                    f"Model config not found at {self.model_config}. "
+                    "Please download en_US-lessac-medium.onnx.json"
+                )
+
+            # Test synthesis to warm up
             logger.info("Warming up model with test synthesis...")
             _ = self.synthesize_text("Hello world", use_cache=False)
 
@@ -60,23 +77,17 @@ class TTSSynthesizer:
             self._model_loaded = True
 
             logger.info(f"Model loaded successfully in {load_time:.2f}s")
-            logger.info(f"Model sample rate: {self.get_model_sample_rate()} Hz")
+            logger.info(f"Model sample rate: {self.sample_rate} Hz")
 
         except Exception as e:
             logger.error(f"Failed to load TTS model: {e}")
             raise RuntimeError(f"Failed to load TTS model: {e}") from e
 
     def unload_model(self) -> None:
-        """Unload model from memory."""
-        if self.model is not None:
-            logger.info("Unloading TTS model")
-            del self.model
-            self.model = None
+        """Unload model from memory (no-op for Piper, but kept for API compatibility)."""
+        if self._model_loaded:
+            logger.info("Unloading Piper TTS model (no-op)")
             self._model_loaded = False
-
-            # Clear CUDA cache if using GPU
-            if self.device == "cuda":
-                torch.cuda.empty_cache()
 
     def is_loaded(self) -> bool:
         """Check if model is loaded."""
@@ -84,9 +95,6 @@ class TTSSynthesizer:
 
     def get_model_sample_rate(self) -> int:
         """Get model's native sample rate."""
-        if self.model and hasattr(self.model, "synthesizer"):
-            if hasattr(self.model.synthesizer, "output_sample_rate"):
-                return self.model.synthesizer.output_sample_rate
         return self.sample_rate
 
     def synthesize_text(
@@ -98,13 +106,13 @@ class TTSSynthesizer:
         use_cache: bool = True,
     ) -> Tuple[np.ndarray, int]:
         """
-        Synthesize text to audio.
+        Synthesize text to audio using Piper.
 
         Args:
             text: Text to synthesize
-            speaker_id: Speaker ID for multi-speaker models
-            language: Language code
-            speed: Speech speed multiplier
+            speaker_id: Speaker ID (unused for single-speaker Piper models)
+            language: Language code (unused, model is English-only)
+            speed: Speech speed multiplier (passed to Piper via --length-scale)
             use_cache: Whether to use cache (placeholder for cache integration)
 
         Returns:
@@ -113,40 +121,49 @@ class TTSSynthesizer:
         Raises:
             RuntimeError: If model is not loaded or synthesis fails
         """
-        if not self._model_loaded or self.model is None:
+        if not self._model_loaded:
             raise RuntimeError("TTS model not loaded. Call load_model() first.")
 
         try:
             start_time = time.time()
             logger.debug(f"Synthesizing text: '{text[:50]}...' (length: {len(text)})")
 
-            # Prepare synthesis parameters
-            synthesis_kwargs = {}
+            # Prepare Piper command
+            # Piper uses --length-scale (inverse of speed: 1.0 = normal, <1.0 = faster, >1.0 = slower)
+            length_scale = 1.0 / speed if speed != 0 else 1.0
 
-            if speaker_id:
-                synthesis_kwargs["speaker"] = speaker_id
+            cmd = [
+                str(self.piper_binary),
+                "--model",
+                str(self.model_path),
+                "--config",
+                str(self.model_config),
+                "--output-raw",  # Output raw PCM data
+                "--length_scale",
+                str(length_scale),
+            ]
 
-            if language:
-                synthesis_kwargs["language"] = language
+            # Run Piper subprocess
+            process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
 
-            # Synthesize audio
-            audio = self.model.tts(text=text, **synthesis_kwargs)
+            # Send text to stdin and get raw audio from stdout
+            stdout, stderr = process.communicate(input=text.encode("utf-8"))
 
-            # Convert to numpy array if not already
-            if isinstance(audio, list):
-                audio = np.array(audio, dtype=np.float32)
-            elif isinstance(audio, torch.Tensor):
-                audio = audio.cpu().numpy()
+            if process.returncode != 0:
+                error_msg = stderr.decode("utf-8", errors="ignore")
+                raise RuntimeError(f"Piper synthesis failed: {error_msg}")
 
-            # Apply speed adjustment if needed
-            if speed != 1.0:
-                audio = self._adjust_speed(audio, speed)
+            # Convert raw PCM bytes to numpy array
+            # Piper outputs 16-bit signed PCM at 22050 Hz
+            audio = np.frombuffer(stdout, dtype=np.int16).astype(np.float32) / 32768.0
 
             # Normalize audio
             audio = self._normalize_audio(audio)
-
-            # Get actual sample rate
-            actual_sample_rate = self.get_model_sample_rate()
 
             inference_time = time.time() - start_time
             self._inference_count += 1
@@ -157,7 +174,7 @@ class TTSSynthesizer:
                 f"for {len(text)} chars ({len(text) / inference_time:.1f} chars/s)"
             )
 
-            return audio, actual_sample_rate
+            return audio, self.sample_rate
 
         except Exception as e:
             logger.error(f"Synthesis failed: {e}")
@@ -177,14 +194,14 @@ class TTSSynthesizer:
 
         Args:
             text: Text to synthesize
-            speaker_id: Speaker ID for multi-speaker models
-            language: Language code
+            speaker_id: Speaker ID (unused)
+            language: Language code (unused)
             speed: Speech speed multiplier
-            audio_format: Output format (wav, mp3, ogg, flac)
+            audio_format: Output format (only 'wav' supported)
             use_cache: Whether to use cache
 
         Returns:
-            Audio data as bytes
+            Audio data as bytes (WAV format)
 
         Raises:
             RuntimeError: If synthesis fails
@@ -205,29 +222,26 @@ class TTSSynthesizer:
 
     def _audio_to_bytes(self, audio: np.ndarray, sample_rate: int, audio_format: str) -> bytes:
         """
-        Convert audio array to bytes.
+        Convert audio array to WAV bytes.
 
         Args:
-            audio: Audio data as numpy array
+            audio: Audio data as numpy array (float32, range -1.0 to 1.0)
             sample_rate: Sample rate in Hz
-            audio_format: Output format (wav, mp3, ogg, flac)
+            audio_format: Output format (only 'wav' supported)
 
         Returns:
-            Audio data as bytes
+            Audio data as bytes (WAV format)
         """
-        # Create in-memory buffer
-        buffer = io.BytesIO()
+        # Convert float32 audio to int16 PCM
+        audio_int16 = (audio * 32767).astype(np.int16)
 
-        # Write audio to buffer
-        if audio_format == "wav":
-            sf.write(buffer, audio, sample_rate, format="WAV", subtype="PCM_16")
-        elif audio_format == "flac":
-            sf.write(buffer, audio, sample_rate, format="FLAC")
-        elif audio_format == "ogg":
-            sf.write(buffer, audio, sample_rate, format="OGG")
-        else:
-            # Default to WAV
-            sf.write(buffer, audio, sample_rate, format="WAV", subtype="PCM_16")
+        # Create WAV file in memory
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as wav_file:
+            wav_file.setnchannels(1)  # Mono
+            wav_file.setsampwidth(2)  # 16-bit
+            wav_file.setframerate(sample_rate)
+            wav_file.writeframes(audio_int16.tobytes())
 
         # Get bytes
         buffer.seek(0)
@@ -254,28 +268,6 @@ class TTSSynthesizer:
 
         return audio
 
-    def _adjust_speed(self, audio: np.ndarray, speed: float) -> np.ndarray:
-        """
-        Adjust audio speed.
-
-        Args:
-            audio: Audio data
-            speed: Speed multiplier (>1.0 = faster, <1.0 = slower)
-
-        Returns:
-            Speed-adjusted audio
-        """
-        try:
-            import librosa
-
-            # Use librosa for high-quality time stretching
-            audio = librosa.effects.time_stretch(audio, rate=speed)
-            return audio
-
-        except ImportError:
-            logger.warning("librosa not available, speed adjustment disabled")
-            return audio
-
     def get_stats(self) -> dict:
         """
         Get synthesizer statistics.
@@ -289,8 +281,8 @@ class TTSSynthesizer:
 
         return {
             "model_loaded": self._model_loaded,
-            "model_name": self.model_name,
-            "device": self.device,
+            "model_name": "piper:en_US-lessac-medium",
+            "device": "cpu",
             "inference_count": self._inference_count,
             "total_inference_time": self._total_inference_time,
             "avg_inference_time_ms": avg_inference_time * 1000,

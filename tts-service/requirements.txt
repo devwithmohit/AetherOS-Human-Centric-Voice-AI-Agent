@@ -4,14 +4,8 @@ uvicorn[standard]==0.27.0
 pydantic==2.5.3
 pydantic-settings==2.1.0
 
-# TTS & Audio Processing
-TTS==0.22.0  # Coqui TTS
-torch==2.1.2
-torchaudio==2.1.2
+# Audio Processing (minimal - only NumPy for audio manipulation)
 numpy==1.26.3
-soundfile==0.12.1
-librosa==0.10.1
-pydub==0.25.1
 
 # Utilities
 python-multipart==0.0.6
@@ -26,6 +20,3 @@ pytest-cov==4.1.0
 black==24.1.1
 ruff==0.1.14
 mypy==1.8.0
-
-# Quality Assessment
-# nisqa==0.1.0  # Uncomment for NISQA testing
