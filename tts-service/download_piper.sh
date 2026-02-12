@@ -47,12 +47,32 @@ fi
 echo "📥 Downloading Piper binary: $PIPER_FILE"
 curl -L -o piper.tar.gz "${PIPER_RELEASE}/${PIPER_FILE}"
 
+# Clean up any existing installation
+echo "🧹 Cleaning up existing files..."
+rm -rf piper
+
 echo "📂 Extracting Piper binary..."
 tar -xzf piper.tar.gz
-mv piper/piper .
-rm -rf piper piper.tar.gz
 
-chmod +x piper
+# Dynamically find piper binary in extracted directories (at least 2 levels deep)
+PIPER_BINARY=$(find . -mindepth 2 -type f -name "piper" | head -n 1)
+
+if [ -z "$PIPER_BINARY" ]; then
+    echo "❌ Error: piper binary not found in extracted archive"
+    echo "Directory contents:"
+    find . -type f
+    exit 1
+fi
+
+echo "Found piper binary at: $PIPER_BINARY"
+
+# Move to final location
+mv "$PIPER_BINARY" ./piper
+chmod +x ./piper
+
+# Clean up extracted directories and archive
+rm -f piper.tar.gz
+find . -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
 
 echo "✅ Piper binary installed: $(pwd)/piper"
 

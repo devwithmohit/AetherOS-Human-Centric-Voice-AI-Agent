@@ -65,6 +65,14 @@ models/*.bin
 reasoning-engine/models/*.gguf
 reasoning-engine/models/*.bin
 
+# TTS Service - Piper models and binaries
+tts-service/models/piper
+tts-service/models/*.onnx
+tts-service/models/*.onnx.json
+tts-service/models/*.tar.gz
+tts-service/models/piper/
+tts-service/cache/
+
 # Uncomment if you want to ignore model files in the models directory
 # models/*.onnx
 # models/*.tflite
