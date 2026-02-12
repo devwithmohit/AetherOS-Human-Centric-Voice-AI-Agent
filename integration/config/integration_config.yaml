@@ -1,0 +1,138 @@
+# Integration Testing Configuration
+
+# API Gateway
+gateway:
+  host: localhost
+  port: 8000
+  base_url: http://localhost:8000
+  timeout_seconds: 30
+
+# Service Endpoints (gRPC)
+services:
+  wake_word:
+    host: localhost
+    port: 50051
+    enabled: true
+
+  stt:
+    host: localhost
+    port: 50051
+    timeout: 30
+
+  tts:
+    host: localhost
+    port: 50052
+    timeout: 30
+
+  intent:
+    host: localhost
+    port: 50053
+    timeout: 10
+
+  planner:
+    host: localhost
+    port: 50054
+    timeout: 15
+
+  safety:
+    host: localhost
+    port: 50055
+    timeout: 5
+
+  browser:
+    host: localhost
+    port: 50056
+    timeout: 60
+
+  os_executor:
+    host: localhost
+    port: 50057
+    timeout: 60
+
+  search:
+    host: localhost
+    port: 50058
+    timeout: 60
+
+  memory:
+    host: localhost
+    port: 50059
+    timeout: 10
+
+# Redis
+redis:
+  host: localhost
+  port: 6379
+  db: 0
+
+# Test Configuration
+test:
+  use_mock_services: true  # Set to false for real services
+  save_logs: true
+  log_directory: logs
+  correlation_id_prefix: integration_test
+
+  # Timeouts
+  max_total_duration: 300  # 5 minutes max per scenario
+  step_timeout: 60  # 60 seconds per step
+
+  # Retry configuration
+  max_retries: 3
+  retry_delay: 2  # seconds
+
+# Scenario-specific settings
+scenarios:
+  youtube:
+    enabled: true
+    user_preferences:
+      language: English
+      min_video_duration: 600  # 10 minutes
+      preferred_creators: []
+
+    mock_data:
+      transcription: "play a youtube video about rust"
+      intent: PLAY_MEDIA
+      search_results:
+        - title: "Rust Programming Tutorial - Full Course"
+          url: "https://youtube.com/watch?v=example1"
+          duration: 3600
+          creator: "Tech Academy"
+        - title: "Learn Rust in 10 Minutes"
+          url: "https://youtube.com/watch?v=example2"
+          duration: 600
+          creator: "Quick Code"
+        - title: "Rust for Beginners 2024"
+          url: "https://youtube.com/watch?v=example3"
+          duration: 1800
+          creator: "Code Masters"
+
+  weather_email:
+    enabled: true
+    mock_data:
+      transcription: "check the weather and send the report to john"
+      intent: MULTI_ACTION
+
+  code_assistant:
+    enabled: true
+    mock_data:
+      transcription: "find python async examples and open the best one in vscode"
+      intent: CODE_HELP
+
+# Authentication (for API Gateway)
+auth:
+  enabled: false  # Disable for integration testing
+  test_token: null  # Set if auth is enabled
+
+# Logging
+logging:
+  level: INFO
+  format: json
+  file: logs/integration_test.log
+  console: true
+
+# Metrics
+metrics:
+  enabled: true
+  prometheus_port: 9090
+  collect_response_times: true
+  collect_success_rates: true

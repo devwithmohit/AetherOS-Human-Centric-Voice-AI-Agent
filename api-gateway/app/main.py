@@ -156,6 +156,10 @@ async def rate_limit_middleware(request: Request, call_next):
     if request.url.path in ["/health", "/metrics", "/ready"]:
         return await call_next(request)
 
+    # Skip rate limiting if rate_limiter not initialized (e.g., TESTING mode)
+    if not hasattr(request.app.state, "rate_limiter"):
+        return await call_next(request)
+
     # Get client identifier (IP or user ID from JWT)
     client_id = request.client.host if request.client else "unknown"
     if hasattr(request.state, "user_id"):
