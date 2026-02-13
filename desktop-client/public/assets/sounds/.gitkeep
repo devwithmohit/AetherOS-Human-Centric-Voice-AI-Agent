@@ -1,0 +1,17 @@
+# Sounds Directory
+
+Place UI feedback sounds here:
+
+- `notification.wav` - General notification sound
+- `error.wav` - Error/failure sound
+- `success.wav` - Success/completion sound
+- `wake.wav` - Wake word detected sound
+- `listening-start.wav` - Recording started sound
+- `listening-stop.wav` - Recording stopped sound
+
+Audio specifications:
+- Format: WAV or MP3
+- Sample rate: 44.1kHz or 48kHz
+- Bit depth: 16-bit
+- Channels: Mono or Stereo
+- Duration: < 2 seconds (prefer < 500ms)

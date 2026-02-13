@@ -1,0 +1,72 @@
+{
+  "name": "jarvis-desktop-client",
+  "version": "1.0.0",
+  "description": "Aether AI Voice Assistant - Desktop Client",
+  "main": "dist/electron/main.js",
+  "author": "Jarvis Team",
+  "license": "MIT",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:react\" \"npm run dev:electron\"",
+    "dev:react": "vite",
+    "dev:electron": "tsc -p tsconfig.electron.json && electron .",
+    "build": "tsc && vite build && tsc -p tsconfig.electron.json",
+    "build:electron": "electron-builder",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "zustand": "^4.5.0",
+    "framer-motion": "^11.0.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-query": "^3.39.3",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0",
+    "wavesurfer.js": "^7.7.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.16",
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "concurrently": "^8.2.2",
+    "electron": "^28.2.1",
+    "electron-builder": "^24.9.1",
+    "eslint": "^8.56.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.0",
+    "vite-plugin-electron": "^0.28.3"
+  },
+  "build": {
+    "appId": "com.jarvis.aether",
+    "productName": "Aether",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "public/assets/icons/app-icon.ico"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "public/assets/icons/app-icon.icns"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "icon": "public/assets/icons/app-icon.png"
+    }
+  }
+}

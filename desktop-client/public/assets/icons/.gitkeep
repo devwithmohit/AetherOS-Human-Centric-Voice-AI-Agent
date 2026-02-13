@@ -1,0 +1,16 @@
+# Icons Directory
+
+Place application icons here:
+
+- `app-icon.ico` - Windows icon
+- `app-icon.icns` - macOS icon
+- `app-icon.png` - Linux icon (512x512)
+- `tray-idle.png` - System tray icon (idle state)
+- `tray-listening.png` - System tray icon (listening state)
+- `tray-speaking.png` - System tray icon (speaking state)
+
+Icon specifications:
+
+- Windows ICO: 256x256, 128x128, 64x64, 48x48, 32x32, 16x16
+- macOS ICNS: 1024x1024, 512x512, 256x256, 128x128, 64x64, 32x32, 16x16
+- PNG: 512x512 (transparent background)
