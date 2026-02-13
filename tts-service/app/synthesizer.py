@@ -27,7 +27,7 @@ class TTSSynthesizer:
 
         # Piper paths (relative to tts-service root)
         self.models_dir = Path(__file__).parent.parent / "models"
-        self.piper_binary = self.models_dir / "piper"
+        self.piper_binary = self.models_dir / "piper" / "piper"
         self.model_path = self.models_dir / "en_US-lessac-medium.onnx"
         self.model_config = self.models_dir / "en_US-lessac-medium.onnx.json"
 
@@ -69,12 +69,14 @@ class TTSSynthesizer:
                     "Please download en_US-lessac-medium.onnx.json"
                 )
 
+            # Mark model as loaded (files verified)
+            self._model_loaded = True
+
             # Test synthesis to warm up
             logger.info("Warming up model with test synthesis...")
             _ = self.synthesize_text("Hello world", use_cache=False)
 
             load_time = time.time() - start_time
-            self._model_loaded = True
 
             logger.info(f"Model loaded successfully in {load_time:.2f}s")
             logger.info(f"Model sample rate: {self.sample_rate} Hz")

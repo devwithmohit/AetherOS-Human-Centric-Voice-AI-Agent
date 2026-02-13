@@ -11,14 +11,25 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Create async engine
-engine = create_async_engine(
-    settings.database_url,
-    echo=settings.log_level == "DEBUG",
-    pool_size=settings.pool_size,
-    max_overflow=settings.max_overflow,
-    pool_pre_ping=True,
-    poolclass=NullPool if settings.environment == "test" else None,
-)
+# SQLite doesn't support pool_size/max_overflow, only use them for PostgreSQL
+engine_args = {
+    "echo": settings.log_level == "DEBUG",
+    "pool_pre_ping": True,
+}
+
+# Add pooling args only for non-SQLite databases
+if "sqlite" not in settings.database_url.lower():
+    engine_args.update(
+        {
+            "pool_size": settings.pool_size,
+            "max_overflow": settings.max_overflow,
+            "poolclass": NullPool if settings.environment == "test" else None,
+        }
+    )
+else:
+    engine_args["poolclass"] = NullPool
+
+engine = create_async_engine(settings.database_url, **engine_args)
 
 # Create session factory
 AsyncSessionLocal = async_sessionmaker(

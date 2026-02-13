@@ -51,6 +51,7 @@ class TTSResponse(BaseModel):
 
 
 @router.post("/stt", response_model=STTResponse)
+@router.post("/transcribe", response_model=STTResponse)
 async def speech_to_text(
     request: Request,
     audio: UploadFile = File(..., description="Audio file for transcription"),
@@ -60,23 +61,17 @@ async def speech_to_text(
     Convert speech to text (M2).
 
     Args:
-        audio: Audio file (mp3, wav, ogg, etc.)
+        audio: Audio file (mp3, wav, ogg, webm, etc.)
         language: Language code (e.g., en-US, es-ES)
 
     Returns:
         Transcription result with confidence score
     """
+    import os
+    import tempfile
+    import traceback
+
     try:
-        # Get gRPC client
-        grpc_manager = request.app.state.grpc_manager
-        stt_client = grpc_manager.get_client("stt")
-
-        if not stt_client:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Speech-to-Text service unavailable",
-            )
-
         # Read audio data
         audio_data = await audio.read()
 
@@ -94,8 +89,63 @@ async def speech_to_text(
             language=language,
         )
 
-        # TODO: Make gRPC call to M2 when gRPC service is ready
-        # For now, return mock response
+        # Try to use Whisper if available
+        try:
+            import whisper
+            import torch
+
+            # Save audio to temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_file:
+                temp_file.write(audio_data)
+                temp_audio_path = temp_file.name
+
+            try:
+                # Load Whisper model (use tiny for speed, can upgrade to base/small later)
+                logger.info("stt_loading_whisper_model", model="tiny")
+                model = whisper.load_model("tiny", device="cpu")  # Use CPU for compatibility
+
+                # Transcribe
+                logger.info("stt_transcribing", audio_path=temp_audio_path)
+                result = model.transcribe(
+                    temp_audio_path, language=language[:2]
+                )  # Use first 2 chars (en from en-US)
+
+                transcript_text = result["text"].strip()
+
+                # Estimate confidence from Whisper segments
+                confidence = 0.9  # Default high confidence
+                if "segments" in result and result["segments"]:
+                    # Average the probabilities from segments
+                    probs = [seg.get("no_speech_prob", 0.1) for seg in result["segments"]]
+                    avg_prob = sum(probs) / len(probs)
+                    confidence = 1.0 - avg_prob  # Convert no-speech prob to confidence
+
+                logger.info(
+                    "stt_success_whisper", transcript=transcript_text, confidence=confidence
+                )
+
+                return STTResponse(
+                    transcript=transcript_text,
+                    confidence=confidence,
+                    language=language,
+                    duration_ms=int(result.get("duration", 0) * 1000),
+                )
+
+            finally:
+                # Clean up temp file
+                if os.path.exists(temp_audio_path):
+                    os.unlink(temp_audio_path)
+
+        except ImportError:
+            logger.warning("whisper_not_installed", message="Falling back to mock transcription")
+            # Fall through to mock response
+        except Exception as e:
+            logger.error(
+                "whisper_transcription_failed", error=str(e), traceback=traceback.format_exc()
+            )
+            # Fall through to mock response
+
+        # Fallback mock response (only if Whisper fails or not installed)
         response = STTResponse(
             transcript="This is a sample transcription",
             confidence=0.95,

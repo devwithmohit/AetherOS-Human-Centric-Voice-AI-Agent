@@ -3,6 +3,11 @@ import { useAppStore } from '@store/appStore';
 import { apiClient } from '@services/api';
 import { wsService } from '@services/websocket';
 
+// Voice Activity Detection (VAD) settings
+const SILENCE_THRESHOLD = 10; // Audio level below this is considered silence
+const SILENCE_DURATION = 2000; // 2 seconds of silence triggers auto-stop
+const MIN_RECORDING_DURATION = 500; // Minimum 500ms recording
+
 export const useVoiceRecording = () => {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -10,6 +15,11 @@ export const useVoiceRecording = () => {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationFrameRef = useRef<number>();
+
+  // VAD state
+  const silenceStartRef = useRef<number | null>(null);
+  const recordingStartRef = useRef<number>(0);
+  const autoStopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const setStatus = useAppStore((state) => state.setStatus);
   const setMicLevel = useAppStore((state) => state.setMicLevel);
@@ -53,23 +63,35 @@ export const useVoiceRecording = () => {
         // Send audio to backend for transcription
         try {
           setStatus('processing');
+          console.log('🎤 Sending audio for transcription...');
 
           const result = await apiClient.transcribeAudio(audioBlob);
+          console.log('📝 Transcription result:', result);
 
-          if (result.text) {
+          const transcribedText = result.text || result.transcript;
+
+          if (transcribedText) {
+            console.log('✅ Transcribed text:', transcribedText);
+
             addMessage({
               role: 'user',
-              content: result.text,
+              content: transcribedText,
             });
 
             // Send text to backend via WebSocket for response
+            console.log('📤 Sending to WebSocket:', { type: 'message', text: transcribedText });
             wsService.send({
               type: 'message',
-              text: result.text,
+              text: transcribedText,
             });
+          } else {
+            console.warn('⚠️ No transcribed text received:', result);
           }
+
+          // Return to idle state after processing
+          setStatus('idle');
         } catch (error) {
-          console.error('Failed to transcribe audio:', error);
+          console.error('❌ Failed to transcribe audio:', error);
           addMessage({
             role: 'system',
             content: 'Failed to process voice input. Please try again.',
@@ -84,13 +106,16 @@ export const useVoiceRecording = () => {
           audioContextRef.current = null;
         }
         audioChunksRef.current = [];
+        silenceStartRef.current = null;
       };
 
       mediaRecorder.start();
       setIsRecording(true);
       setStatus('listening');
+      recordingStartRef.current = Date.now();
+      silenceStartRef.current = null;
 
-      // Start audio level monitoring
+      // Start audio level monitoring with VAD
       const updateAudioLevel = () => {
         if (!analyserRef.current) return;
 
@@ -102,6 +127,28 @@ export const useVoiceRecording = () => {
         const level = Math.min((average / 128) * 100, 100);
 
         setMicLevel(level);
+
+        // Voice Activity Detection (VAD)
+        const recordingDuration = Date.now() - recordingStartRef.current;
+
+        if (level < SILENCE_THRESHOLD) {
+          // Silence detected
+          if (silenceStartRef.current === null) {
+            silenceStartRef.current = Date.now();
+          } else {
+            const silenceDuration = Date.now() - silenceStartRef.current;
+
+            // Auto-stop if silence exceeds threshold AND minimum recording duration met
+            if (silenceDuration >= SILENCE_DURATION && recordingDuration >= MIN_RECORDING_DURATION) {
+              console.log('Auto-stopping due to silence');
+              stopRecording();
+              return;
+            }
+          }
+        } else {
+          // Voice detected, reset silence timer
+          silenceStartRef.current = null;
+        }
 
         if (isRecording) {
           animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
@@ -121,6 +168,7 @@ export const useVoiceRecording = () => {
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
+      console.log('Stopping recording...');
       mediaRecorderRef.current.stop();
       setIsRecording(false);
 
@@ -128,7 +176,13 @@ export const useVoiceRecording = () => {
         cancelAnimationFrame(animationFrameRef.current);
       }
 
+      if (autoStopTimeoutRef.current) {
+        clearTimeout(autoStopTimeoutRef.current);
+        autoStopTimeoutRef.current = null;
+      }
+
       setMicLevel(0);
+      silenceStartRef.current = null;
     }
   }, [isRecording, setMicLevel]);
 

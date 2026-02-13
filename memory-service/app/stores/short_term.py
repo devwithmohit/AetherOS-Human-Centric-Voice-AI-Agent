@@ -31,8 +31,8 @@ class ShortTermMemory:
             await self.redis.ping()
             logger.info("Connected to Redis successfully")
         except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
-            raise
+            logger.warning(f"Failed to connect to Redis: {e}. Running without cache.")
+            self.redis = None  # Run without Redis
 
     async def disconnect(self) -> None:
         """Close Redis connection."""

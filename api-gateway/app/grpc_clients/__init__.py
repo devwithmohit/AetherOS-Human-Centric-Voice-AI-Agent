@@ -61,8 +61,21 @@ class GRPCClient:
                 ],
             )
 
-            # Wait for channel to be ready
-            await self.channel.channel_ready()
+            # Wait for channel to be ready with timeout
+            try:
+                await asyncio.wait_for(self.channel.channel_ready(), timeout=3.0)
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "grpc_client_connect_timeout",
+                    service=self.service_name,
+                    host=self.host,
+                    message="Channel not ready after 3s, service may not have gRPC server",
+                )
+                self.connected = False
+                if self.channel:
+                    await self.channel.close()
+                    self.channel = None
+                return
 
             self.connected = True
             logger.info("grpc_client_connected", service=self.service_name, host=self.host)
@@ -75,7 +88,10 @@ class GRPCClient:
                 host=self.host,
                 error=str(e),
             )
-            raise
+            # Don't raise, just log the error
+            if self.channel:
+                await self.channel.close()
+                self.channel = None
 
     async def close(self):
         """Close gRPC channel."""

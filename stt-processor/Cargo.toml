@@ -37,6 +37,11 @@ bytes = "1.5"
 parking_lot = "0.12"                   # Faster mutexes
 num_cpus = "1.16"                      # CPU core detection
 
+# HTTP server
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace"] }
+
 # Testing
 [dev-dependencies]
 approx = "0.5"

@@ -1,0 +1,354 @@
+services:
+  # ============================================
+  # M10: Memory Service (Start First - No Dependencies)
+  # ============================================
+  memory-service:
+    build:
+      context: ./memory-service
+      dockerfile: Dockerfile
+    container_name: aether-memory
+    ports:
+      - "8010:8010"
+    environment:
+      - PORT=8010
+      - NODE_ENV=${NODE_ENV:-development}
+      - MEMORY_STORAGE_PATH=/data/memory
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/aetheros.db
+      - REDIS_URL=redis://localhost:6379
+      - CHROMA_PERSIST_DIRECTORY=/data/memory/chroma
+    volumes:
+      - memory-data:/data/memory
+    networks:
+      - aether-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================
+  # M11: API Gateway (Start Early)
+  # ============================================
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: aether-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - NODE_ENV=${NODE_ENV:-development}
+      - MEMORY_SERVICE_URL=http://memory-service:8010
+      - ORCHESTRATOR_URL=http://orchestrator:8001
+      - STT_SERVICE_URL=http://stt-service:8002
+      - TTS_SERVICE_URL=http://tts-service:8003
+      - LLM_SERVICE_URL=http://llm-service:8004
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks:
+      - aether-network
+    depends_on:
+      memory-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================
+  # M2: Speech-to-Text Service (Whisper)
+  # ============================================
+  stt-service:
+    build:
+      context: ./stt-processor
+      dockerfile: Dockerfile
+    container_name: aether-stt
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - DEVICE=${DEVICE:-cpu}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - whisper-models:/root/.cache/whisper
+      - ./stt-processor:/app
+      - /app/target
+    networks:
+      - aether-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================
+  # M3: Text-to-Speech Service (Piper)
+  # ============================================
+  tts-service:
+    build:
+      context: ./tts-service
+      dockerfile: Dockerfile
+    container_name: aether-tts
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - PIPER_VOICE=${PIPER_VOICE:-en_US-lessac-medium}
+      - AUDIO_OUTPUT_PATH=/data/audio
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks:
+      - aether-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================
+  # M4: LLM Service (Ollama/Claude)
+  # ============================================
+  llm-service:
+    build:
+      context: ./reasoning-engine
+      dockerfile: Dockerfile
+    container_name: aether-llm
+    ports:
+      - "8004:8004"
+    environment:
+      - PORT=8004
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-llama3.2:3b}
+      - LLM_MODE=${LLM_MODE:-local}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks:
+      - aether-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================
+  # M5: Tool Registry
+  # ============================================
+  tool-registry:
+    build:
+      context: ./tool-registry
+      dockerfile: Dockerfile
+    container_name: aether-tools
+    ports:
+      - "8005:8005"
+    environment:
+      - PORT=8005
+      - TOOLS_CONFIG_PATH=/data/tools
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - tools-config:/data/tools
+    networks:
+      - aether-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================
+  # M6: Intent Classifier
+  # ============================================
+  intent-classifier:
+    build:
+      context: ./intent-classifier
+      dockerfile: Dockerfile
+    container_name: aether-intent
+    ports:
+      - "8006:8006"
+    environment:
+      - PORT=8006
+      - MODEL_PATH=/data/models
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - intent-models:/data/models
+    networks:
+      - aether-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================
+  # M7: Function Executor
+  # ============================================
+  function-executor:
+    build:
+      context: ./function-executor
+      dockerfile: Dockerfile
+    container_name: aether-executor
+    ports:
+      - "8007:8007"
+    environment:
+      - PORT=8007
+      - TOOL_REGISTRY_URL=http://tool-registry:8005
+      - EXECUTION_TIMEOUT=${EXECUTION_TIMEOUT:-30000}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks:
+      - aether-network
+    depends_on:
+      - tool-registry
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================
+  # M8: Context Manager
+  # ============================================
+  context-manager:
+    build:
+      context: ./context-manager
+      dockerfile: Dockerfile
+    container_name: aether-context
+    ports:
+      - "8008:8008"
+    environment:
+      - PORT=8008
+      - MEMORY_SERVICE_URL=http://memory-service:8010
+      - CONTEXT_WINDOW_SIZE=${CONTEXT_WINDOW_SIZE:-10}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks:
+      - aether-network
+    depends_on:
+      memory-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================
+  # M9: Prompt Builder
+  # ============================================
+  prompt-builder:
+    build:
+      context: ./prompt-builder
+      dockerfile: Dockerfile
+    container_name: aether-prompts
+    ports:
+      - "8009:8009"
+    environment:
+      - PORT=8009
+      - CONTEXT_MANAGER_URL=http://context-manager:8008
+      - TEMPLATES_PATH=/data/templates
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - prompt-templates:/data/templates
+    networks:
+      - aether-network
+    depends_on:
+      - context-manager
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================
+  # M1: Orchestrator (Start After Dependencies)
+  # ============================================
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    container_name: aether-orchestrator
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+      - MEMORY_SERVICE_URL=http://memory-service:8010
+      - STT_SERVICE_URL=http://stt-service:8002
+      - TTS_SERVICE_URL=http://tts-service:8003
+      - LLM_SERVICE_URL=http://llm-service:8004
+      - TOOL_REGISTRY_URL=http://tool-registry:8005
+      - INTENT_CLASSIFIER_URL=http://intent-classifier:8006
+      - FUNCTION_EXECUTOR_URL=http://function-executor:8007
+      - CONTEXT_MANAGER_URL=http://context-manager:8008
+      - PROMPT_BUILDER_URL=http://prompt-builder:8009
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks:
+      - aether-network
+    depends_on:
+      memory-service:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+      stt-service:
+        condition: service_started
+      tts-service:
+        condition: service_started
+      llm-service:
+        condition: service_started
+      tool-registry:
+        condition: service_started
+      intent-classifier:
+        condition: service_started
+      function-executor:
+        condition: service_started
+      context-manager:
+        condition: service_started
+      prompt-builder:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  aether-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ============================================
+# Volumes (Persistent Data)
+# ============================================
+volumes:
+  memory-data:
+    driver: local
+  whisper-models:
+    driver: local
+  piper-voices:
+    driver: local
+  tts-audio:
+    driver: local
+  tools-config:
+    driver: local
+  intent-models:
+    driver: local
+  prompt-templates:
+    driver: local

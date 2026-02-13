@@ -127,7 +127,7 @@ class KnowledgeBase(Base):
     value = Column(Text, nullable=False)
     confidence = Column(Integer, default=100)  # 0-100
     source = Column(String(100), nullable=True)  # 'user_input', 'learned', 'inferred'
-    metadata = Column(JSON, default=dict)
+    meta_data = Column("metadata", JSON, default=dict)  # Renamed to avoid SQLAlchemy reserved word
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False

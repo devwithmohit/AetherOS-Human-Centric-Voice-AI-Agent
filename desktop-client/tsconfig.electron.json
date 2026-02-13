@@ -1,10 +1,13 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "CommonJS",
-    "noEmit": false,
+    "module": "ESNext",
+    "noEmit": true,
+    "moduleResolution": "bundler",
     "outDir": "dist/electron",
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
   },
   "include": ["electron/**/*"]
 }

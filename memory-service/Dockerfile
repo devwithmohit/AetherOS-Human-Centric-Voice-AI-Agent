@@ -3,24 +3,22 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
-COPY requirements.txt .
-
-# Install Python dependencies
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application
-COPY app/ app/
-COPY .env.example .env
+# Copy application code
+COPY . .
 
-# Create chroma data directory
-RUN mkdir -p /app/chroma_data
+# Create data directories with write permissions
+RUN mkdir -p /app/data /data/memory /data/memory/chroma && \
+    chmod -R 777 /data
 
-EXPOSE 8001
+EXPOSE 8010
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
+HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=5 \
+  CMD curl -f http://localhost:8010/health || exit 1
+
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010"]

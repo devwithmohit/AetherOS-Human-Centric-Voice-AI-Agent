@@ -50,7 +50,13 @@ class ApiClient {
   }
 
   // Speech-to-Text
-  async transcribeAudio(audioBlob: Blob): Promise<{ text: string; confidence?: number }> {
+  async transcribeAudio(audioBlob: Blob): Promise<{
+    text?: string;
+    transcript?: string;
+    confidence?: number;
+    language?: string;
+    duration_ms?: number;
+  }> {
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
 

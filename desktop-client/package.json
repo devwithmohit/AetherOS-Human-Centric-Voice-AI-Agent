@@ -6,9 +6,9 @@
   "author": "Jarvis Team",
   "license": "MIT",
   "scripts": {
-    "dev": "concurrently \"npm run dev:react\" \"npm run dev:electron\"",
+    "dev": "concurrently --kill-others \"npm run dev:react\" \"npm run dev:electron\"",
     "dev:react": "vite",
-    "dev:electron": "tsc -p tsconfig.electron.json && electron .",
+    "dev:electron": "tsc -p tsconfig.electron.json && NODE_ENV=development electron .",
     "build": "tsc && vite build && tsc -p tsconfig.electron.json",
     "build:electron": "electron-builder",
     "preview": "vite preview",

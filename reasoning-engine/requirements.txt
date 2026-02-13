@@ -4,6 +4,10 @@
 # Core LLM inference
 llama-cpp-python>=0.2.0
 
+# Web framework
+fastapi>=0.108.0
+uvicorn[standard]>=0.25.0
+
 # Data validation
 pydantic>=2.5.0
 

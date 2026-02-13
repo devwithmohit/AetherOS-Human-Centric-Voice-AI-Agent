@@ -8,6 +8,29 @@ use stt_processor::{
 use std::sync::Arc;
 use tracing::{error, info};
 use tracing_subscriber;
+use axum::{
+    routing::get,
+    Router,
+    Json,
+    response::IntoResponse,
+    http::StatusCode,
+};
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize)]
+struct HealthResponse {
+    status: String,
+    service: String,
+    version: String,
+}
+
+async fn health_check() -> impl IntoResponse {
+    Json(HealthResponse {
+        status: "healthy".to_string(),
+        service: "stt-service".to_string(),
+        version: "1.0.0".to_string(),
+    })
+}
 
 #[tokio::main]
 async fn main() {
@@ -57,9 +80,20 @@ async fn main() {
     info!("STT service initialized successfully");
     info!("Ready to process audio");
 
-    // In production: start gRPC server here
-    // For now: keep service running
-    tokio::signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
+    // Start HTTP server for health checks
+    let app = Router::new()
+        .route("/health", get(health_check));
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8002")
+        .await
+        .expect("Failed to bind to port 8002");
+
+    info!("HTTP server listening on http://0.0.0.0:8002");
+
+    // Start server
+    axum::serve(listener, app)
+        .await
+        .expect("Failed to start HTTP server");
 
     info!("Shutting down STT service");
 }

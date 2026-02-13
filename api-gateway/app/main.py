@@ -12,6 +12,7 @@ from typing import Dict, Any
 import structlog
 
 from fastapi import FastAPI, Request, Response, status
+from fastapi import File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -234,6 +235,33 @@ async def root() -> Dict[str, Any]:
         "status": "running",
         "docs": "/docs" if settings.DEBUG else None,
     }
+
+
+# Legacy API compatibility routes
+@app.post("/api/stt/transcribe")
+async def legacy_stt_transcribe(
+    request: Request,
+    audio: UploadFile = File(...),
+    language: str = "en-US",
+):
+    """Legacy STT endpoint for backward compatibility."""
+    from app.routers.voice_router import speech_to_text
+
+    return await speech_to_text(request, audio, language)
+
+
+@app.post("/api/tts/synthesize")
+async def legacy_tts_synthesize(
+    request: Request,
+    text: str,
+    voice: str = "en-US-Standard-A",
+    speed: float = 1.0,
+):
+    """Legacy TTS endpoint for backward compatibility."""
+    from app.routers.voice_router import text_to_speech, TTSRequest
+
+    tts_request = TTSRequest(text=text, voice=voice, speed=speed)
+    return await text_to_speech(request, tts_request)
 
 
 @app.get("/metrics")

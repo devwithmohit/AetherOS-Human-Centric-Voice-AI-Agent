@@ -1,6 +1,7 @@
 import { useAppStore } from '@store/appStore';
 
 export type WebSocketMessageType =
+  | 'connection'
   | 'transcription'
   | 'response'
   | 'status'
@@ -27,9 +28,10 @@ class WebSocketService {
   private ws: WebSocket | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
-  private reconnectDelay = 5000;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 3000;
   private isIntentionallyClosed = false;
+  private pingInterval: NodeJS.Timeout | null = null;
   private messageHandlers: Map<WebSocketMessageType, Set<(data: any) => void>> = new Map();
 
   constructor() {
@@ -39,6 +41,7 @@ class WebSocketService {
   private initializeHandlers() {
     // Initialize handler sets for each message type
     const types: WebSocketMessageType[] = [
+      'connection',
       'transcription',
       'response',
       'status',
@@ -65,10 +68,14 @@ class WebSocketService {
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
-          console.log('WebSocket connected');
+          console.log('✅ WebSocket connected');
           this.reconnectAttempts = 0;
           this.isIntentionallyClosed = false;
           useAppStore.getState().setConnected(true);
+
+          // Start heartbeat
+          this.startHeartbeat();
+
           resolve();
         };
 
@@ -77,15 +84,19 @@ class WebSocketService {
         };
 
         this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
+          console.error('❌ WebSocket error:', error);
           useAppStore.getState().setConnected(false);
         };
 
         this.ws.onclose = (event) => {
-          console.log('WebSocket closed:', event.code, event.reason);
+          console.log(`🔌 WebSocket closed (code: ${event.code}, reason: ${event.reason || 'none'})`);
           useAppStore.getState().setConnected(false);
 
-          if (!this.isIntentionallyClosed) {
+          // Stop heartbeat
+          this.stopHeartbeat();
+
+          // Only reconnect if closure was unexpected and not a deliberate disconnect
+          if (!this.isIntentionallyClosed && event.code !== 1000) {
             this.attemptReconnect();
           }
         };
@@ -129,6 +140,10 @@ class WebSocketService {
     const store = useAppStore.getState();
 
     switch (message.type) {
+      case 'connection':
+        console.log('🔗 Connection established:', message);
+        break;
+
       case 'transcription':
         if (message.text) {
           store.addMessage({
@@ -147,6 +162,23 @@ class WebSocketService {
             audioUrl: message.audioUrl,
             isMarkdown: true,
           });
+        }
+
+        // Handle client-side execution instructions
+        if (message.execute && message.execute.url) {
+          console.log('🚀 Executing command on client:', message.execute);
+
+          // Use Electron shell to open URL in default browser
+          if (window.electron && window.electron.shell) {
+            window.electron.shell.openExternal(message.execute.url).then(() => {
+              console.log('✅ URL opened:', message.execute.url);
+            }).catch((error: any) => {
+              console.error('❌ Failed to open URL:', error);
+            });
+          } else {
+            // Fallback to window.open if Electron API not available
+            window.open(message.execute.url, '_blank');
+          }
         }
         break;
 
@@ -202,25 +234,49 @@ class WebSocketService {
 
   private attemptReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
+      console.error(`❌ Max reconnection attempts (${this.maxReconnectAttempts}) reached. Giving up.`);
       return;
     }
 
     this.reconnectAttempts++;
-    console.log(`Reconnecting (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+    const delay = this.reconnectDelay * Math.min(this.reconnectAttempts, 3); // Exponential backoff (max 3x)
+
+    console.log(`🔄 Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
 
     this.reconnectTimeout = setTimeout(() => {
       this.connect().catch((error) => {
-        console.error('Reconnection failed:', error);
+        console.error('❌ Reconnection failed:', error);
       });
-    }, this.reconnectDelay);
+    }, delay);
+  }
+
+  private startHeartbeat() {
+    // Send ping every 30 seconds to keep connection alive
+    this.pingInterval = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.send({ type: 'ping' });
+      }
+    }, 30000);
+  }
+
+  private stopHeartbeat() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
   }
 
   send(message: WebSocketMessage | any) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      console.log('📤 Sending WebSocket message:', message);
       this.ws.send(JSON.stringify(message));
+
+      // If sending a user message, set typing indicator
+      if (message.type === 'message' && message.text) {
+        useAppStore.getState().setTyping(true);
+      }
     } else {
-      console.warn('WebSocket not connected, cannot send message');
+      console.warn('⚠️ WebSocket not connected, cannot send message:', message);
     }
   }
 
@@ -255,12 +311,15 @@ class WebSocketService {
       this.reconnectTimeout = null;
     }
 
+    this.stopHeartbeat();
+
     if (this.ws) {
-      this.ws.close();
+      this.ws.close(1000, 'Client disconnecting');
       this.ws = null;
     }
 
     useAppStore.getState().setConnected(false);
+    console.log('🔌 WebSocket disconnected');
   }
 
   isConnected(): boolean {

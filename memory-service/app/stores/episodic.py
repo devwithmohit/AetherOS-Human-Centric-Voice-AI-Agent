@@ -21,14 +21,8 @@ class EpisodicMemory:
     async def connect(self) -> None:
         """Establish ChromaDB connection."""
         try:
-            # For local persistence
-            self.client = chromadb.Client(
-                ChromaSettings(
-                    chroma_db_impl="duckdb+parquet",
-                    persist_directory=settings.chroma_persist_dir,
-                    anonymized_telemetry=False,
-                )
-            )
+            # Use modern ChromaDB PersistentClient API
+            self.client = chromadb.PersistentClient(path=settings.chroma_persist_dir)
 
             # Get or create collection
             self.client.get_or_create_collection(
@@ -38,8 +32,8 @@ class EpisodicMemory:
 
             logger.info("Connected to ChromaDB successfully")
         except Exception as e:
-            logger.error(f"Failed to connect to ChromaDB: {e}")
-            raise
+            logger.warning(f"Failed to connect to ChromaDB: {e}. Running without episodic memory.")
+            self.client = None  # Run without ChromaDB
 
     async def disconnect(self) -> None:
         """Close ChromaDB connection."""

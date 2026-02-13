@@ -77,12 +77,33 @@ tts-service/cache/
 # models/*.onnx
 # models/*.tflite
 
-# Ignore all markdown files
-*.md
+# Docker volumes
+volumes/
+docker-data/
 
-# Allow README.md everywhere
-!README.md
-!**/README.md
+# Electron build output
+desktop-client/dist/
+desktop-client/out/
+desktop-client/release/
+
+# Frontend build
+desktop-client/.vite/
+desktop-client/.turbo/
+
+# Test results
+test-results/
+test-output/
+
+# Backup files
+*.bak
+*.backup
+
+# Docker override
+docker-compose.override.yml
+
+# Local scripts
+local-*.sh
+local-*.bat
 
 # Database files
 *.db
@@ -96,3 +117,17 @@ htmlcov/
 
 # UV package manager
 .uv/
+
+# Ignore all shell scripts
+*.sh
+
+# Ignore all markdown files
+*.md
+
+# But allow README.md
+!README.md
+
+*.md
+!README.md
+!**/README.md
+

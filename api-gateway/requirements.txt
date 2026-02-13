@@ -18,6 +18,11 @@ websockets>=12.0
 tenacity>=8.2.3
 circuitbreaker>=1.4.0
 
+# Audio Processing
+openai-whisper>=20231117
+pydub>=0.25.1
+ffmpeg-python>=0.2.0
+
 # Dev Dependencies
 pytest>=7.4.3
 pytest-asyncio>=0.23.3

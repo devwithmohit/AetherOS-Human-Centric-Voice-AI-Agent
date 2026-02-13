@@ -175,14 +175,27 @@ async def websocket_endpoint(
     websocket: WebSocket,
     session_id: str,
 ):
-    """
-    WebSocket endpoint for real-time communication.
+    """WebSocket endpoint with explicit session ID."""
+    await _handle_websocket(websocket, session_id)
 
-    Supports messages:
-    - stt_stream: Stream speech-to-text results
-    - tts_stream: Stream text-to-speech audio
-    - execution_progress: Stream execution progress
-    - memory_update: Notify memory changes
+
+@router.websocket("/ws")
+async def websocket_endpoint_default(
+    websocket: WebSocket,
+):
+    """WebSocket endpoint with auto-generated session ID."""
+    import uuid
+
+    session_id = str(uuid.uuid4())
+    await _handle_websocket(websocket, session_id)
+
+
+async def _handle_websocket(
+    websocket: WebSocket,
+    session_id: str,
+):
+    """
+    Internal WebSocket handler.
 
     Args:
         websocket: WebSocket connection
@@ -236,6 +249,10 @@ async def websocket_endpoint(
                         session_id,
                         {"type": "pong", "timestamp": datetime.utcnow().isoformat()},
                     )
+
+                elif message_type == "message":
+                    # Handle regular text message (chat/command)
+                    await handle_message(session_id, message)
 
                 elif message_type == "stt_stream":
                     # Handle streaming STT
@@ -292,6 +309,126 @@ async def heartbeat(session_id: str):
             )
     except asyncio.CancelledError:
         pass
+
+
+async def handle_message(session_id: str, message: Dict[str, Any]):
+    """
+    Handle regular text message/command.
+
+    Args:
+        session_id: WebSocket session ID
+        message: Message containing 'text' field
+    """
+    text = message.get("text", "")
+
+    # Send status update
+    await manager.send_message(
+        session_id,
+        {
+            "type": "status",
+            "status": "processing",
+            "timestamp": datetime.utcnow().isoformat(),
+        },
+    )
+
+    # Call orchestrator service to process the message
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                "http://aether-orchestrator:8001/process",
+                json={
+                    "text": text,
+                    "session_id": session_id,
+                },
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+
+                response_text = result.get("response", "I processed your request.")
+                intent = result.get("intent")
+                executed = result.get("executed", False)
+                error = result.get("error")
+
+                # Check if result includes client-side execution instructions
+                execute_on_client = result.get("execute_on_client", False)
+                action = result.get("action")
+                url = result.get("url")
+
+                # Log the result
+                logger.info(
+                    f"Orchestrator processed message",
+                    session_id=session_id,
+                    intent=intent,
+                    executed=executed,
+                    execute_on_client=execute_on_client,
+                )
+
+                # Send response with execution instructions
+                response_data = {
+                    "type": "response",
+                    "text": response_text,
+                    "intent": intent,
+                    "executed": executed,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+
+                # Add execution instructions if present
+                if execute_on_client and url:
+                    response_data["execute"] = {
+                        "action": action,
+                        "url": url,
+                    }
+
+                await manager.send_message(session_id, response_data)
+            else:
+                logger.error(
+                    f"Orchestrator returned error",
+                    status_code=response.status_code,
+                )
+                await manager.send_message(
+                    session_id,
+                    {
+                        "type": "response",
+                        "text": "I encountered an issue while processing your request. Please try again.",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                )
+
+    except httpx.TimeoutException:
+        logger.error("Orchestrator timeout")
+        await manager.send_message(
+            session_id,
+            {
+                "type": "response",
+                "text": "The request is taking longer than expected. Please try again.",
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error calling orchestrator: {e}", exc_info=True)
+        await manager.send_message(
+            session_id,
+            {
+                "type": "response",
+                "text": "I'm having trouble processing your request right now. Please try again later.",
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
+    # Send completion status
+    await manager.send_message(
+        session_id,
+        {
+            "type": "status",
+            "status": "complete",
+            "timestamp": datetime.utcnow().isoformat(),
+        },
+    )
 
 
 async def handle_stt_stream(session_id: str, message: Dict[str, Any]):

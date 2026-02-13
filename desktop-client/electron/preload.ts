@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, shell } from 'electron';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld('electron', {
   minimizeWindow: () => ipcRenderer.invoke('minimize-window'),
   maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
   closeWindow: () => ipcRenderer.invoke('close-window'),
+
+  // Shell (for opening URLs in browser)
+  shell: {
+    openExternal: (url: string) => shell.openExternal(url),
+  },
 
   // Audio recording events
   onToggleRecording: (callback: () => void) => {
@@ -43,6 +48,9 @@ declare global {
       minimizeWindow: () => Promise<void>;
       maximizeWindow: () => Promise<void>;
       closeWindow: () => Promise<void>;
+      shell: {
+        openExternal: (url: string) => Promise<void>;
+      };
       onToggleRecording: (callback: () => void) => void;
       microphoneStart: () => Promise<{ success: boolean; error?: string }>;
       microphoneStop: () => Promise<{ success: boolean; error?: string }>;

@@ -401,25 +401,25 @@ const EmptyState: React.FC<{ message: string }> = ({ message }) => {
     </div>
   );
 };
-                    </div>
-                  </div>
+//                     </div>
+//                   </div>
 
-                  {/* Delete button */}
-                  <button
-                    onClick={() => removeMemory(memory.id)}
-                    className="opacity-0 group-hover:opacity-100 p-2 hover:bg-slate-700 rounded-lg transition-all"
-                    title="Remove memory"
-                  >
-                    <svg className="w-4 h-4 text-slate-400 hover:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </motion.div>
-            ))
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-};
+//                   {/* Delete button */}
+//                   <button
+//                     onClick={() => removeMemory(memory.id)}
+//                     className="opacity-0 group-hover:opacity-100 p-2 hover:bg-slate-700 rounded-lg transition-all"
+//                     title="Remove memory"
+//                   >
+//                     <svg className="w-4 h-4 text-slate-400 hover:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+//                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+//                     </svg>
+//                   </button>
+//                 </div>
+//               </motion.div>
+//             ))
+//           )}
+//         </AnimatePresence>
+//       </div>
+//     </div>
+//   );
+// };

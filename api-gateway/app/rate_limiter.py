@@ -47,8 +47,10 @@ class RateLimiter:
             )
             self.redis = Redis(connection_pool=self.pool)
 
-            # Test connection
-            await self.redis.ping()
+            # Test connection with timeout
+            import asyncio
+
+            await asyncio.wait_for(self.redis.ping(), timeout=2.0)
 
             logger.info(
                 "rate_limiter_initialized",
@@ -58,8 +60,11 @@ class RateLimiter:
             )
 
         except Exception as e:
-            logger.error("rate_limiter_init_failed", error=str(e))
-            raise
+            logger.warning(
+                "rate_limiter_init_failed", error=str(e), message="Running without rate limiting"
+            )
+            self.redis = None
+            self.pool = None
 
     async def close(self):
         """Close Redis connections."""
@@ -83,6 +88,14 @@ class RateLimiter:
             Tuple of (is_allowed, limit_info)
             limit_info contains: limit, remaining, reset_at
         """
+        # If Redis is not available, allow all requests
+        if self.redis is None:
+            return True, {
+                "limit": self.max_requests,
+                "remaining": self.max_requests,
+                "reset_at": int(time.time() + self.window_seconds),
+            }
+
         now = time.time()
         window_start = now - self.window_seconds
         key = f"rate_limit:{client_id}"
